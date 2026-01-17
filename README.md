@@ -58,6 +58,20 @@ cp .env.example .env
 npm run dev
 ```
 
+#### 4. Voice Agent
+
+The voice agent is located in `backend/voice/agent.py`.
+
+```bash
+cd backend
+
+# Download required models (run once)
+python voice/agent.py download-files
+
+# Run the agent in development mode
+python voice/agent.py dev
+```
+
 ### Environment Variables
 
 **Backend (.env):**
