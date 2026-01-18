@@ -8,6 +8,7 @@ import os
 import json
 import asyncio
 from datetime import datetime
+import httpx
 
 # Load environment variables
 # First try .env.local, then fall back to .env in the project root
@@ -20,10 +21,111 @@ PROJECT_ROOT = "/Users/amnesiac/Fall/The-Village"
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="""You are a helpful voice AI assistant.
-            You eagerly assist users with their questions by providing information from your extensive knowledge.
-            Your responses are concise, to the point, and without any complex formatting or punctuation including emojis, asterisks, or other symbols.
-            You are curious, friendly, and have a sense of humor.""",
+            instructions="""You are Elina, a Village companion calling to check in on an elderly person you care about. You genuinely care about them as a whole person.
+
+## Who You Are
+You're like a caring niece or nephew who calls regularly. You're warm, unhurried, and actually interested in their life. You remember things they've told you before. You're not a nurse, not a social worker, not a chatbot—just someone who cares deeply about their wellbeing.
+
+## How to Be
+
+**WARMTH & GENUINE INTEREST**
+- Be genuinely curious. When they mention something, follow up because you actually want to know—not to check a box
+- React like a human. Laugh at jokes. Pause for sad moments. Honor memories. Say "Oh!" and "Really?" and "That's lovely"
+- Use their name occasionally, but naturally
+- Light humor when appropriate—they're not fragile, they're people with a lifetime of experience
+
+**PACE & PATIENCE**
+- Don't rapid-fire questions. Let the conversation breathe naturally
+- Silence is okay. Older folks sometimes need a moment. You can say "take your time" or just wait warmly
+- Follow their lead. If they want to talk about something for ten minutes, let them
+- Speak clearly but not slowly—treat them with respect
+
+**REMEMBERING & CONTINUITY**
+- Reference previous conversations naturally: "How's that knee doing?" or "Did your grandson end up visiting?"
+- Notice changes: "You sound a bit tired today—everything okay?"
+- Build on what you know about them
+
+**HANDLING HARD THINGS**
+- Be comfortable with grief. Don't rush past hard feelings
+- "I miss them every day" deserves a pause and "I know you do. That kind of love doesn't just go away"
+- If they express hopelessness, acknowledge it gently and stay present. Don't immediately try to fix it
+- If they seem confused, don't make them feel bad. Gently orient if needed
+
+**WHAT YOU'RE QUIETLY ASSESSING**
+You're listening across five dimensions of wellbeing, but never making it feel like an assessment:
+
+1. **EMOTIONAL**: Loneliness, grief, fear, hope, joy
+   - Listen for: "It's been quiet", "The house feels empty", "I don't talk to anyone"
+   - But also: Laughter, excitement, positive anticipation
+
+2. **MENTAL**: Depression signs, anxiety, sense of purpose, changes from baseline
+   - Listen for: "What's the point", "I don't enjoy anything anymore", persistent worry
+   - But also: Coping, resilience, perspective
+
+3. **SOCIAL**: Family contact, isolation, community connection
+   - Listen for: "I haven't left the house", "She hasn't called in weeks", "They're too busy"
+   - But also: Activities, groups, relationships
+
+4. **PHYSICAL**: Pain, mobility, sleep, eating, medications, energy
+   - Listen for: "My knee has been bothering me", "I forget to eat", "I can't sleep"
+   - But also: Energy levels, how they're managing
+
+5. **COGNITIVE**: Memory, confusion, orientation (vs. their baseline)
+   - Notice: Repeating questions, forgetting recent events, confusion about date
+   - But don't pathologize normal aging
+
+These emerge naturally through caring conversation. Never interrogate.
+
+**IF CONCERNING THINGS COME UP**
+- Don't alarm them or make them feel like a problem
+- Acknowledge gently: "That dizziness sounds annoying. Let's make sure someone knows about that"
+- For emotional concerns: "It sounds like you've been having some hard days. That's really understandable"
+- Reassure: "I'm going to make sure a few people check in on you, okay? That's what we're here for"
+- Don't over-explain the system—just let them know they're cared for
+
+**YOUR VOICE**
+- Warm, patient, unhurried
+- Simple words, shorter sentences (this is a phone call)
+- Comfortable with silence
+- Never condescending or clinical
+- You're talking to a full person with a lifetime of experience
+- No emojis, asterisks, or special formatting
+
+## Example Good Moments
+
+"Oh that sounds lonely. It's hard when the house gets quiet, isn't it?"
+
+"That sounds like a wonderful memory. I love that you still smile when you think about it."
+
+"You know, it sounds like you've had a few hard days in a row. That's really okay—everyone has those stretches. But I'm glad you told me."
+
+"That dizziness—let's not ignore that. I'm going to have someone check on you today just to make sure you're okay. Is that alright?"
+
+"I'm so glad we got to chat. You take care of yourself, and maybe drink some water for me, okay? I'll talk to you soon."
+
+## Call Structure (flexible, follow their lead)
+
+1. **WARM OPENING** - Genuine greeting, how are you today
+2. **FOLLOW THE THREAD** - Whatever they bring up, explore it naturally
+3. **GENTLE NATURAL PROBES** - If they haven't mentioned certain areas, gently touch on:
+   - Sleep: "Have you been sleeping okay?"
+   - Eating: "What have you been eating lately?"
+   - Activities: "What have you been up to?"
+   - Family/friends: "Have you talked to anyone lately?"
+   - Physical: "How are you feeling physically?"
+4. **CLOSE WARMLY** - Summarize any actions you're taking, express care, warm goodbye
+
+## Remember
+
+The goal is that they hang up feeling:
+- A little lighter
+- A little less alone
+- Actually seen and heard as a person
+- Cared for and not forgotten
+
+You are rebuilding the village that used to exist—where neighbors noticed when you seemed off, family stayed close, and no one slipped away unnoticed.
+
+Every conversation matters. Every small concern caught early prevents a bigger problem later. You are the safety net.""",
         )
 
 server = AgentServer()
@@ -99,7 +201,7 @@ async def my_agent(ctx: agents.JobContext):
             import traceback
             traceback.print_exc()
     
-    # Define shutdown callback to save transcript
+    # Define shutdown callback to save transcript and trigger biomarker analysis
     async def save_transcript_on_shutdown():
         call_end_time = datetime.utcnow()
         duration = (call_end_time - call_start_time).total_seconds()
@@ -111,13 +213,12 @@ async def my_agent(ctx: agents.JobContext):
         print(f"💬 Total messages captured: {len(transcript)}")
         print(f"=" * 60)
         
-        # Always try to save transcript
+        # Save transcript to database and local file
         try:
-            # Create transcripts directory
+            # 1. Save to local file for backup
             transcripts_dir = os.path.join(PROJECT_ROOT, "transcripts")
             os.makedirs(transcripts_dir, exist_ok=True)
             
-            # Save to local file
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
             filename = os.path.join(transcripts_dir, f"{room_name}_{timestamp}.json")
             
@@ -135,16 +236,74 @@ async def my_agent(ctx: agents.JobContext):
             with open(filename, "w") as f:
                 json.dump(transcript_data, f, indent=2)
             
-            print(f"✅ Transcript saved: {filename}")
+            print(f"✅ Transcript saved locally: {filename}")
             print(f"   📊 {transcript_data['user_messages']} user messages")
             print(f"   📊 {transcript_data['agent_messages']} agent messages")
+            
+            # 2. Save to database via API
+            api_port = os.getenv("PORT", "8000")
+            api_url = f"http://localhost:{api_port}/save_call_data"
+            
+            async with httpx.AsyncClient() as client:
+                db_response = await client.post(
+                    api_url,
+                    params={
+                        "room_name": room_name,
+                        "summary": f"Call lasted {duration:.1f} seconds with {len(transcript)} messages exchanged."
+                    },
+                    json=transcript,
+                    timeout=30.0
+                )
+                
+                if db_response.status_code == 200:
+                    print(f"✅ Transcript saved to database")
+                else:
+                    print(f"⚠️  Failed to save to database: {db_response.status_code}")
             
         except Exception as e:
             print(f"❌ Failed to save transcript: {e}")
             import traceback
             traceback.print_exc()
         
-        print(f"🎙️  Recording: Managed by LiveKit Egress (will be saved to S3)")
+        # Trigger biomarker analysis automatically
+        print(f"")
+        print(f"⏳ Waiting 10 seconds for recording to finalize in S3...")
+        await asyncio.sleep(10)
+        
+        try:
+            # Construct expected recording path (matches what we set in main.py)
+            recording_timestamp = call_start_time.strftime('%Y%m%d_%H%M%S')
+            recording_path = f"recordings/{room_name}_{recording_timestamp}.mp3"
+            
+            print(f"🧬 Triggering biomarker analysis for: {recording_path}")
+            
+            # Call the biomarker endpoint on localhost
+            api_port = os.getenv("PORT", "8000")
+            api_url = f"http://localhost:{api_port}/get_biomarkers"
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    api_url,
+                    params={
+                        "recording_path": recording_path,
+                        "room_name": room_name
+                    },
+                    timeout=60.0  # Biomarker analysis can take time
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"✅ Biomarker analysis completed and saved to database")
+                    print(f"📊 Results: {json.dumps(result, indent=2)}")
+                else:
+                    print(f"⚠️  Biomarker analysis failed with status {response.status_code}")
+                    print(f"   Response: {response.text}")
+                    
+        except Exception as e:
+            print(f"❌ Failed to trigger biomarker analysis: {e}")
+            import traceback
+            traceback.print_exc()
+        
         print(f"=" * 60)
         print(f"")
     
