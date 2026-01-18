@@ -51,6 +51,15 @@ class Biomarkers(BaseModel):
     requestId: Optional[str] = None
 
 
+class ParkinsonDetection(BaseModel):
+    """Parkinson's disease detection results from voice analysis"""
+    disease: str  # "Parkinson" or "Healthy"
+    confidence: float
+    message: str
+    details: dict
+    warning: Optional[str] = None
+
+
 class Call(BaseModel):
     """Call session record"""
     id: str
@@ -64,6 +73,7 @@ class Call(BaseModel):
     transcript: List[TranscriptEntry] = []
     summary: Optional[str] = None
     biomarkers: Optional[Biomarkers] = None
+    parkinson_detection: Optional[ParkinsonDetection] = None
     created_at: datetime
 
 
@@ -96,5 +106,11 @@ class GetElderlyResponse(BaseModel):
 
 class GetBiomarkersRequest(BaseModel):
     """Request to get biomarkers for an audio recording"""
+    recording_path: str
+    room_name: Optional[str] = None
+
+
+class GetParkinsonRequest(BaseModel):
+    """Request to detect Parkinson's disease from an audio recording"""
     recording_path: str
     room_name: Optional[str] = None

@@ -1,0 +1,21 @@
+{
+  "room_name": "call_99ed980c",
+  "transcript": [
+    {
+      "timestamp": "2026-01-18T14:37:57.147468",
+      "speaker": "user",
+      "text": "Name and reason for calling"
+    },
+    {
+      "timestamp": "2026-01-18T14:38:06.015728",
+      "speaker": "agent",
+      "text": "Hello there, it's Elina calling. Just wanted to check in on you today, see how you're doing and how things have been since we last spoke."
+    }
+  ],
+  "started_at": "2026-01-18T14:37:53.826457",
+  "ended_at": "2026-01-18T14:38:28.932324",
+  "duration_seconds": 35.11,
+  "total_messages": 2,
+  "user_messages": 1,
+  "agent_messages": 1
+}

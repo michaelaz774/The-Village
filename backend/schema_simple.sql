@@ -5,6 +5,7 @@
 -- ELDERLY TABLE
 -- ============================================================================
 
+DROP TABLE IF EXISTS elderly CASCADE;
 CREATE TABLE elderly (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -20,6 +21,7 @@ CREATE TABLE elderly (
 -- CALLS TABLE
 -- ============================================================================
 
+DROP TABLE IF EXISTS calls CASCADE;
 CREATE TABLE calls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     elderly_id UUID NOT NULL REFERENCES elderly(id) ON DELETE CASCADE,
@@ -44,12 +46,20 @@ CREATE TABLE calls (
     
     -- Biomarkers (stored as JSONB)
     biomarkers JSONB,  -- {"heartRate": 72, "heartRateVariability": 45, ...}
-    
+
+    -- Parkinson's detection (stored as JSONB)
+    parkinson_detection JSONB,  -- {"disease": "Parkinson", "confidence": 0.85, "message": "...", ...}
+
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+DROP INDEX IF EXISTS idx_calls_elderly;
 CREATE INDEX idx_calls_elderly ON calls(elderly_id);
+
+DROP INDEX IF EXISTS idx_calls_started;
 CREATE INDEX idx_calls_started ON calls(started_at DESC);
+
+DROP INDEX IF EXISTS idx_calls_room_name;
 CREATE INDEX idx_calls_room_name ON calls(room_name);
 
 -- ============================================================================
@@ -64,6 +74,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_elderly_updated_at ON elderly;
 CREATE TRIGGER update_elderly_updated_at BEFORE UPDATE ON elderly
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

@@ -325,7 +325,8 @@ async def my_agent(ctx: agents.JobContext):
             print(f"📁 Recording: {recording_path}")
             
             async with httpx.AsyncClient() as client:
-                response = await client.post(
+                # Trigger biomarker analysis
+                biomarker_response = await client.post(
                     "http://localhost:8000/trigger_biomarker_analysis",
                     params={
                         "room_name": room_name,
@@ -333,14 +334,29 @@ async def my_agent(ctx: agents.JobContext):
                     },
                     timeout=5.0
                 )
-                
-                if response.status_code == 200:
+
+                if biomarker_response.status_code == 200:
                     print(f"✅ Biomarker analysis queued successfully")
                 else:
-                    print(f"⚠️  Failed to queue biomarker analysis: HTTP {response.status_code}")
-                    
+                    print(f"⚠️  Failed to queue biomarker analysis: HTTP {biomarker_response.status_code}")
+
+                # Trigger Parkinson's analysis
+                parkinson_response = await client.post(
+                    "http://localhost:8000/trigger_parkinson_analysis",
+                    params={
+                        "room_name": room_name,
+                        "recording_path": recording_path
+                    },
+                    timeout=5.0
+                )
+
+                if parkinson_response.status_code == 200:
+                    print(f"✅ Parkinson's analysis queued successfully")
+                else:
+                    print(f"⚠️  Failed to queue Parkinson's analysis: HTTP {parkinson_response.status_code}")
+
         except Exception as e:
-            print(f"⚠️  Could not trigger biomarker analysis: {e}")
+            print(f"⚠️  Could not trigger health analyses: {e}")
             print(f"   (FastAPI server may not be running)")
     
     # Register event handler

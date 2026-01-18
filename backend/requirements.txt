@@ -11,6 +11,12 @@ httpx>=0.24.0
 # Database
 supabase>=2.3.4
 
+# Audio processing and ML
+librosa>=0.10.0
+pydub>=0.25.1
+scipy>=1.11.0
+scikit-learn>=1.3.0
+
 # LiveKit Core
 livekit>=1.0.0
 livekit-api>=1.0.0

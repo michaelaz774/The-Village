@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from backend.database import supabase
 from backend.models_simple import (
     Elderly, Call, StartCallRequest, StartCallResponse,
     GetElderlyResponse, Biomarkers, TranscriptEntry, CallStatus,
-    GetBiomarkersRequest
+    GetBiomarkersRequest, GetParkinsonRequest, ParkinsonDetection
 )
 import requests
 import os
@@ -437,7 +437,7 @@ async def process_biomarkers_background(room_name: str, recording_path: str, s3_
         print(f"📥 [Background] Downloading audio from S3: {recording_path}")
         
         # Download from Supabase S3 with retries
-        s3_bucket = os.getenv("S3_BUCKET", "recordings")
+        s3_bucket = "audio_files"  # Always use audio_files bucket for Supabase Storage
         print(f"📦 [Background] Using S3 bucket: {s3_bucket}")
         print(f"📁 [Background] Full recording path: {recording_path}")
 
@@ -726,6 +726,107 @@ async def process_biomarkers_background(room_name: str, recording_path: str, s3_
         except Exception as save_error:
             print(f"⚠️  [Background] Could not save default biomarkers: {save_error}")
 
+# Background task to process Parkinson's detection
+async def process_parkinson_background(room_name: str, recording_path: str):
+    """Background task to download audio and analyze Parkinson's disease"""
+    import requests  # Import here for all HTTP operations
+
+    print(f"")
+    print(f"🧠 [Background] Starting Parkinson's analysis for room: {room_name}")
+    print(f"⏳ [Background] Waiting 35 seconds for LiveKit Egress to finalize recording...")
+    await asyncio.sleep(35)
+
+    try:
+        print(f"📥 [Background] Downloading audio for Parkinson's analysis: {recording_path}")
+
+        # Parse recording path for bucket and file path
+        # Note: recording_path is stored as "recordings/filename.mp3" but we need to access it from "audio_files" bucket
+        bucket = "audio_files"
+        path = recording_path  # This should already be "recordings/filename.mp3"
+
+        # Generate signed URL for download
+        print(f"🔐 [Background] Generating signed download URL...")
+        signed = supabase.storage.from_(bucket).create_signed_url(
+            path,
+            expires_in=300
+        )
+
+        audio_url = signed["signedURL"]
+        print("⬇️ [Background] Downloading audio...")
+        audio_response = requests.get(audio_url, timeout=60)
+        audio_response.raise_for_status()
+        audio_content = audio_response.content
+
+        print(f"✅ [Background] Downloaded {len(audio_content)} bytes")
+
+        # Run Parkinson's detection
+        print(f"🧠 [Background] Analyzing audio for Parkinson's disease...")
+        from backend.parkinson.run_model import predict_parkinson
+        parkinson_result = predict_parkinson(audio_content, path.split("/")[-1])
+
+        # Convert result to ParkinsonDetection model
+        from backend.models_simple import ParkinsonDetection
+        parkinson_detection = ParkinsonDetection(
+            disease=parkinson_result["disease"],
+            confidence=parkinson_result["confidence"],
+            message=parkinson_result["message"],
+            details=parkinson_result["details"],
+            warning=parkinson_result.get("warning")
+        )
+
+        # Pretty print Parkinson's detection results
+        print(f"")
+        print(f"=" * 60)
+        print(f"🧠 PARKINSON'S DISEASE DETECTION (Background)")
+        print(f"=" * 60)
+        print(f"📁 File: {path}")
+        print(f"📞 Room: {room_name}")
+        print(f"")
+        print(f"🎯 Disease: {parkinson_result['disease']}")
+        print(f"📊 Confidence: {parkinson_result['confidence']:.3f}")
+        print(f"💬 Message: {parkinson_result['message']}")
+        print(f"")
+
+        # Print details
+        if "details" in parkinson_result and parkinson_result["details"]:
+            details = parkinson_result["details"]
+            if "parkinson_prob" in details:
+                print(f"   🏥 Parkinson Probability: {details['parkinson_prob']:.3f}")
+            if "healthy_prob" in details:
+                print(f"   💚 Healthy Probability: {details['healthy_prob']:.3f}")
+        print(f"")
+        print(f"=" * 60)
+        print(f"")
+
+        # Save to database
+        supabase.table("calls").update({
+            "parkinson_detection": parkinson_detection.dict()
+        }).eq("room_name", room_name).execute()
+        print(f"✅ [Background] Parkinson's detection saved to database")
+
+    except Exception as e:
+        print(f"❌ [Background] Failed Parkinson's analysis: {e}")
+        import traceback
+        traceback.print_exc()
+
+        # Save default Parkinson's detection on exception
+        try:
+            default_parkinson = {
+                "disease": "Unknown",
+                "confidence": 0.0,
+                "message": "Analysis failed - exception occurred",
+                "details": {},
+                "warning": "Analysis could not be completed",
+                "error": str(e)[:200]
+            }
+
+            supabase.table("calls").update({
+                "parkinson_detection": default_parkinson
+            }).eq("room_name", room_name).execute()
+            print(f"⚠️  [Background] Saved default Parkinson's detection (exception)")
+        except Exception as save_error:
+            print(f"⚠️  [Background] Could not save default Parkinson's detection: {save_error}")
+
 
 @app.post("/trigger_biomarker_analysis")
 async def trigger_biomarker_analysis(
@@ -742,10 +843,30 @@ async def trigger_biomarker_analysis(
 
     # Add to background tasks (FastAPI will handle this properly)
     background_tasks.add_task(process_biomarkers_background, room_name, recording_path, s3_endpoint)
-    
+
     return {
         "status": "queued",
         "message": "Biomarker analysis queued",
+        "room_name": room_name,
+        "recording_path": recording_path
+    }
+
+@app.post("/trigger_parkinson_analysis")
+async def trigger_parkinson_analysis(
+    background_tasks: BackgroundTasks,
+    room_name: str,
+    recording_path: str
+):
+    """Trigger Parkinson's disease analysis in background (called by agent after call ends)"""
+    print(f"🧠 Received Parkinson's trigger for room: {room_name}")
+    print(f"📁 Recording path: {recording_path}")
+
+    # Add to background tasks (FastAPI will handle this properly)
+    background_tasks.add_task(process_parkinson_background, room_name, recording_path)
+
+    return {
+        "status": "queued",
+        "message": "Parkinson's analysis queued",
         "room_name": room_name,
         "recording_path": recording_path
     }
@@ -819,11 +940,39 @@ async def copy_file_for_testing():
         print(f"❌ Copy failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/detect_parkinson")
+async def detect_parkinson(file: UploadFile = File(...)):
+    """
+    Detect Parkinson's disease from voice recording.
+    Upload an audio file to analyze for Parkinson's symptoms.
+    """
+    try:
+        from backend.parkinson.run_model import predict_parkinson
+
+        # Read the uploaded file
+        content = await file.read()
+
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded")
+
+        # Run Parkinson's detection
+        result = predict_parkinson(content, file.filename)
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Parkinson's detection failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Parkinson's detection error: {str(e)}")
+
 @app.post("/get_biomarkers")
 async def get_biomarkers(request: GetBiomarkersRequest):
     import requests
 
-    bucket, path = request.recording_path.split("/", 1)
+    # Note: recording_path is stored as "recordings/filename.mp3" but we need to access it from "audio_files" bucket
+    bucket = "audio_files"
+    path = request.recording_path
 
     try:
         print("🔐 Generating signed download URL...")
@@ -877,6 +1026,95 @@ async def get_biomarkers(request: GetBiomarkersRequest):
 
     except Exception as e:
         print(f"❌ Biomarker pipeline failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/detect_parkinson_from_recording")
+async def detect_parkinson_from_recording(request: GetParkinsonRequest):
+    """
+    Detect Parkinson's disease from a stored audio recording.
+    Downloads audio from Supabase Storage and analyzes it for Parkinson's symptoms.
+    """
+    import requests
+
+    # Note: recording_path is stored as "recordings/filename.mp3" but we need to access it from "audio_files" bucket
+    bucket = "audio_files"
+    path = request.recording_path
+
+    try:
+        print("🔐 Generating signed download URL for Parkinson's detection...")
+
+        signed = supabase.storage.from_(bucket).create_signed_url(
+            path,
+            expires_in=300
+        )
+
+        audio_url = signed["signedURL"]
+
+        print("⬇️ Downloading audio for Parkinson's analysis...")
+        audio_response = requests.get(audio_url, timeout=60)
+        audio_response.raise_for_status()
+        audio_content = audio_response.content
+
+        print(f"✅ Downloaded {len(audio_content)} bytes for Parkinson's analysis")
+
+        # Run Parkinson's detection
+        from backend.parkinson.run_model import predict_parkinson
+        parkinson_result = predict_parkinson(audio_content, path.split("/")[-1])
+
+        # Convert result to ParkinsonDetection model
+        parkinson_detection = ParkinsonDetection(
+            disease=parkinson_result["disease"],
+            confidence=parkinson_result["confidence"],
+            message=parkinson_result["message"],
+            details=parkinson_result["details"],
+            warning=parkinson_result.get("warning")
+        )
+
+        # Pretty print Parkinson's detection results
+        print(f"")
+        print(f"=" * 60)
+        print(f"🧠 PARKINSON'S DISEASE DETECTION")
+        print(f"=" * 60)
+        print(f"📁 File: {path}")
+        print(f"📞 Room: {request.room_name or 'N/A'}")
+        print(f"")
+        print(f"🎯 Disease: {parkinson_result['disease']}")
+        print(f"📊 Confidence: {parkinson_result['confidence']:.3f}")
+        print(f"💬 Message: {parkinson_result['message']}")
+        print(f"")
+
+        # Print details
+        if "details" in parkinson_result and parkinson_result["details"]:
+            print(f"📈 Detailed Results:")
+            details = parkinson_result["details"]
+            if "parkinson_prob" in details:
+                print(f"   🏥 Parkinson Probability: {details['parkinson_prob']:.3f}")
+            if "healthy_prob" in details:
+                print(f"   💚 Healthy Probability: {details['healthy_prob']:.3f}")
+            if "features_used" in details:
+                print(f"   🔬 Features Used: {len(details['features_used'])} voice features")
+        print(f"")
+
+        # Print warning if any
+        if parkinson_result.get("warning"):
+            print(f"⚠️  Warning: {parkinson_result['warning']}")
+            print(f"")
+
+        print(f"=" * 60)
+        print(f"")
+
+        # Save to database if room_name provided
+        if request.room_name:
+            supabase.table("calls").update({
+                "parkinson_detection": parkinson_detection.dict()
+            }).eq("room_name", request.room_name).execute()
+            print(f"✅ Parkinson's detection saved to database for room: {request.room_name}")
+
+        print("🧠 Parkinson's detection complete")
+        return parkinson_detection.dict()
+
+    except Exception as e:
+        print(f"❌ Parkinson's detection pipeline failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/debug/list_recordings")

@@ -1,0 +1,21 @@
+{
+  "room_name": "call_77793010",
+  "transcript": [
+    {
+      "timestamp": "2026-01-18T14:35:12.556683",
+      "speaker": "user",
+      "text": "Voicemail. The person you're trying to reach is not available. At the tone Please record your message. When you have finished recording you may hang up."
+    },
+    {
+      "timestamp": "2026-01-18T14:35:28.776661",
+      "speaker": "agent",
+      "text": "Oh, hello there. It's Elina from Village here, just calling to check in on you and see how you're doing. Sounds like you're not able to get to the phone right now, and that's perfectly alright. I just wanted to leave a quick message to say I was thinking of you.\n\nNo need to rush back to me, but if"
+    }
+  ],
+  "started_at": "2026-01-18T14:35:01.925473",
+  "ended_at": "2026-01-18T14:35:50.968710",
+  "duration_seconds": 49.04,
+  "total_messages": 2,
+  "user_messages": 1,
+  "agent_messages": 1
+}

@@ -1,0 +1,21 @@
+{
+  "room_name": "call_68241f0b",
+  "transcript": [
+    {
+      "timestamp": "2026-01-18T14:28:13.841332",
+      "speaker": "user",
+      "text": "The person you're trying to reach is not available. At the tone please record your message. When you have finished recording you may hang up."
+    },
+    {
+      "timestamp": "2026-01-18T14:28:30.335729",
+      "speaker": "agent",
+      "text": "\"Hello, it's Elina from the Village here. Just giving you a quick call to check in and see how you're doing today. Sorry I missed you this time. I'll try again in a day or two, or feel free to give me a ring back whenever you have a moment. Hope you're having a lovely day. Take care now.\""
+    }
+  ],
+  "started_at": "2026-01-18T14:28:03.970808",
+  "ended_at": "2026-01-18T14:28:55.941621",
+  "duration_seconds": 51.97,
+  "total_messages": 2,
+  "user_messages": 1,
+  "agent_messages": 1
+}
