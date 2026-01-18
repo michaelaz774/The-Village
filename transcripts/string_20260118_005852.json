@@ -1,0 +1,36 @@
+{
+  "room_name": "string",
+  "transcript": [
+    {
+      "timestamp": "2026-01-18T00:58:18.923608",
+      "speaker": "user",
+      "text": "Aim and reason for"
+    },
+    {
+      "timestamp": "2026-01-18T00:58:20.697808",
+      "speaker": "user",
+      "text": "Hello"
+    },
+    {
+      "timestamp": "2026-01-18T00:58:27.679722",
+      "speaker": "agent",
+      "text": "Hello"
+    },
+    {
+      "timestamp": "2026-01-18T00:58:27.685695",
+      "speaker": "user",
+      "text": "There's like some like system"
+    },
+    {
+      "timestamp": "2026-01-18T00:58:32.003351",
+      "speaker": "user",
+      "text": "Organization which is funny because it's like oh yeah we're trying to help the environment"
+    }
+  ],
+  "started_at": "2026-01-18T00:58:14.154495",
+  "ended_at": "2026-01-18T00:58:52.190759",
+  "duration_seconds": 38.04,
+  "total_messages": 5,
+  "user_messages": 4,
+  "agent_messages": 1
+}

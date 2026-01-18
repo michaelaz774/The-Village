@@ -200,7 +200,7 @@ async def start_call(request: CallRequest):
                                 api.EncodedFileOutput(
                                     file_type=api.EncodedFileType.MP3,
                                     filepath=recording_filename,
-                                    output=api.S3Upload(
+                                    s3=api.S3Upload(
                                         access_key=s3_access_key,
                                         secret=s3_secret,
                                         region=s3_region,
