@@ -148,88 +148,99 @@ async def start_call(request: StartCallRequest):
             LIVEKIT_API_SECRET,
         )
         
-        # Create SIP participant
-        sip_request = api.CreateSIPParticipantRequest(
-            sip_trunk_id=SIP_TRUNK_ID,
-            sip_call_to=phone_number,
-            room_name=room_name,
-            participant_identity=f"elder_{request.elderly_id}",
-            participant_name=elderly_name,
-        )
+        try:
+            # Create SIP participant
+            sip_request = api.CreateSIPParticipantRequest(
+                sip_trunk_id=SIP_TRUNK_ID,
+                sip_call_to=phone_number,
+                room_name=room_name,
+                participant_identity=f"elder_{request.elderly_id}",
+                participant_name=elderly_name,
+            )
+            
+            print(f"📱 Calling {phone_number}...")
+            sip_participant = await livekit_api.sip.create_sip_participant(sip_request)
+            
+            # Try to get the participant ID (attribute name might vary)
+            participant_id = getattr(sip_participant, 'sip_participant_id', None) or \
+                            getattr(sip_participant, 'participant_id', None) or \
+                            getattr(sip_participant, 'id', None) or \
+                            str(sip_participant)
+            
+            print(f"✅ SIP participant created: {participant_id}")
         
-        print(f"📱 Calling {phone_number}...")
-        sip_participant = livekit_api.sip.create_sip_participant(sip_request)
-        print(f"✅ SIP participant created: {sip_participant.sip_participant_id}")
-        
-        # 4. Start recording if enabled
-        recording_info = None
-        if os.getenv("ENABLE_RECORDING", "false").lower() == "true":
-            try:
-                # Check if S3 is configured
-                s3_endpoint = os.getenv("S3_ENDPOINT")
-                s3_access_key = os.getenv("S3_ACCESS_KEY")
-                s3_secret = os.getenv("S3_SECRET")
-                s3_bucket = os.getenv("S3_BUCKET")
-                s3_region = os.getenv("S3_REGION", "us-east-1")
-                
-                if all([s3_endpoint, s3_access_key, s3_secret, s3_bucket]):
-                    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-                    recording_filename = f"recordings/{room_name}_{timestamp}.mp3"
+            # 4. Start recording if enabled
+            recording_info = None
+            if os.getenv("ENABLE_RECORDING", "false").lower() == "true":
+                try:
+                    # Check if S3 is configured
+                    s3_endpoint = os.getenv("S3_ENDPOINT")
+                    s3_access_key = os.getenv("S3_ACCESS_KEY")
+                    s3_secret = os.getenv("S3_SECRET")
+                    s3_bucket = os.getenv("S3_BUCKET")
+                    s3_region = os.getenv("S3_REGION", "us-east-1")
                     
-                    print(f"🎙️  Starting recording to S3: {recording_filename}")
-                    
-                    egress_request = api.RoomCompositeEgressRequest(
-                        room_name=room_name,
-                        audio_only=True,
-                        file_outputs=[
-                            api.EncodedFileOutput(
-                                file_type=api.EncodedFileType.MP3,
-                                filepath=recording_filename,
-                                s3=api.S3Upload(
-                                    access_key=s3_access_key,
-                                    secret=s3_secret,
-                                    region=s3_region,
-                                    endpoint=s3_endpoint,
-                                    bucket=s3_bucket,
-                                ),
-                            )
-                        ],
-                    )
-                    
-                    egress_info = livekit_api.egress.start_room_composite_egress(egress_request)
-                    
-                    # Update call record with recording path
-                    supabase.table("calls").update({
-                        "recording_path": recording_filename
-                    }).eq("id", call_id).execute()
-                    
-                    recording_info = {
-                        "status": "started",
-                        "egress_id": egress_info.egress_id,
-                        "recording_path": recording_filename
-                    }
-                    print(f"✅ Recording started: {egress_info.egress_id}")
-                else:
-                    print(f"⚠️  S3 not configured, recording disabled")
-                    recording_info = {"status": "disabled", "reason": "S3 not configured"}
-            except Exception as e:
-                print(f"❌ Recording failed: {e}")
-                recording_info = {"status": "failed", "error": str(e)}
-        else:
-            recording_info = {"status": "disabled", "reason": "ENABLE_RECORDING=false"}
-        
-        # Update call status to in_progress
-        supabase.table("calls").update({"status": "in_progress"}).eq("id", call_id).execute()
-        
-        return StartCallResponse(
-            message=f"Calling {elderly_name} at {phone_number}...",
-            room_name=room_name,
-            elderly_name=elderly_name,
-            phone_number=phone_number,
-            call_id=call_id,
-            sip_participant_id=sip_participant.sip_participant_id,
-            recording=recording_info
-        )
+                    if all([s3_endpoint, s3_access_key, s3_secret, s3_bucket]):
+                        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                        recording_filename = f"recordings/{room_name}_{timestamp}.mp3"
+                        
+                        print(f"🎙️  Starting recording to S3: {recording_filename}")
+                        
+                        egress_request = api.RoomCompositeEgressRequest(
+                            room_name=room_name,
+                            audio_only=True,
+                            file_outputs=[
+                                api.EncodedFileOutput(
+                                    file_type=api.EncodedFileType.MP3,
+                                    filepath=recording_filename,
+                                    s3=api.S3Upload(
+                                        access_key=s3_access_key,
+                                        secret=s3_secret,
+                                        region=s3_region,
+                                        endpoint=s3_endpoint,
+                                        bucket=s3_bucket,
+                                    ),
+                                )
+                            ],
+                        )
+                        
+                        egress_info = await livekit_api.egress.start_room_composite_egress(egress_request)
+                        
+                        # Update call record with recording path
+                        supabase.table("calls").update({
+                            "recording_path": recording_filename
+                        }).eq("id", call_id).execute()
+                        
+                        recording_info = {
+                            "status": "started",
+                            "egress_id": egress_info.egress_id,
+                            "recording_path": recording_filename
+                        }
+                        print(f"✅ Recording started: {egress_info.egress_id}")
+                    else:
+                        print(f"⚠️  S3 not configured, recording disabled")
+                        recording_info = {"status": "disabled", "reason": "S3 not configured"}
+                except Exception as e:
+                    print(f"❌ Recording failed: {e}")
+                    recording_info = {"status": "failed", "error": str(e)}
+            else:
+                recording_info = {"status": "disabled", "reason": "ENABLE_RECORDING=false"}
+            
+            # Update call status to in_progress
+            supabase.table("calls").update({"status": "in_progress"}).eq("id", call_id).execute()
+            
+            return StartCallResponse(
+                message=f"Calling {elderly_name} at {phone_number}...",
+                room_name=room_name,
+                elderly_name=elderly_name,
+                phone_number=phone_number,
+                call_id=call_id,
+                sip_participant_id=participant_id,
+                recording=recording_info
+            )
+        finally:
+            # Properly close the LiveKit API client
+            await livekit_api.aclose()
         
     except HTTPException:
         raise

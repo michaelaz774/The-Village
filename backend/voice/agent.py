@@ -9,6 +9,10 @@ import json
 import asyncio
 from datetime import datetime
 import httpx
+import requests
+
+# Import Supabase for direct database access
+from supabase import create_client, Client
 
 # Load environment variables
 # First try .env.local, then fall back to .env in the project root
@@ -17,6 +21,18 @@ load_dotenv()  # This will load from .env if .env.local doesn't exist
 
 # Define absolute path for saving files
 PROJECT_ROOT = "/Users/amnesiac/Fall/The-Village"
+
+# Initialize Supabase client for direct database access
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+supabase: Client = None
+
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print(f"✅ Supabase client initialized in agent")
+    except Exception as e:
+        print(f"⚠️  Failed to initialize Supabase in agent: {e}")
 
 class Assistant(Agent):
     def __init__(self) -> None:
@@ -240,67 +256,131 @@ async def my_agent(ctx: agents.JobContext):
             print(f"   📊 {transcript_data['user_messages']} user messages")
             print(f"   📊 {transcript_data['agent_messages']} agent messages")
             
-            # 2. Save to database via API
-            api_port = os.getenv("PORT", "8000")
-            api_url = f"http://localhost:{api_port}/save_call_data"
-            
-            async with httpx.AsyncClient() as client:
-                db_response = await client.post(
-                    api_url,
-                    params={
-                        "room_name": room_name,
-                        "summary": f"Call lasted {duration:.1f} seconds with {len(transcript)} messages exchanged."
-                    },
-                    json=transcript,
-                    timeout=30.0
-                )
-                
-                if db_response.status_code == 200:
+            # 2. Save directly to Supabase database
+            if supabase:
+                try:
+                    summary = f"Call lasted {duration:.1f} seconds with {len(transcript)} messages exchanged."
+                    
+                    supabase.table("calls").update({
+                        "transcript": transcript,
+                        "summary": summary,
+                        "ended_at": call_end_time.isoformat(),
+                        "duration_seconds": int(duration),
+                        "status": "completed"
+                    }).eq("room_name", room_name).execute()
+                    
                     print(f"✅ Transcript saved to database")
-                else:
-                    print(f"⚠️  Failed to save to database: {db_response.status_code}")
+                except Exception as e:
+                    print(f"⚠️  Failed to save to database: {e}")
+            else:
+                print(f"⚠️  Supabase not initialized, skipping database save")
             
         except Exception as e:
             print(f"❌ Failed to save transcript: {e}")
             import traceback
             traceback.print_exc()
         
-        # Trigger biomarker analysis automatically
+        # Trigger biomarker analysis - download with authentication
         print(f"")
-        print(f"⏳ Waiting 10 seconds for recording to finalize in S3...")
-        await asyncio.sleep(10)
+        print(f"⏳ Waiting 15 seconds for recording to finalize in S3...")
+        await asyncio.sleep(15)
         
         try:
             # Construct expected recording path (matches what we set in main.py)
             recording_timestamp = call_start_time.strftime('%Y%m%d_%H%M%S')
             recording_path = f"recordings/{room_name}_{recording_timestamp}.mp3"
             
-            print(f"🧬 Triggering biomarker analysis for: {recording_path}")
+            print(f"🧬 Starting biomarker analysis for: {recording_path}")
             
-            # Call the biomarker endpoint on localhost
-            api_port = os.getenv("PORT", "8000")
-            api_url = f"http://localhost:{api_port}/get_biomarkers"
+            # Get S3 config
+            s3_bucket = os.getenv("S3_BUCKET")
             
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    api_url,
-                    params={
-                        "recording_path": recording_path,
-                        "room_name": room_name
-                    },
-                    timeout=60.0  # Biomarker analysis can take time
-                )
+            if not supabase or not s3_bucket:
+                print(f"⚠️  Supabase or S3 not configured, skipping biomarker analysis")
+            else:
+                print(f"📥 Downloading audio from Supabase Storage (authenticated)...")
                 
-                if response.status_code == 200:
-                    result = response.json()
-                    print(f"✅ Biomarker analysis completed and saved to database")
-                    print(f"📊 Results: {json.dumps(result, indent=2)}")
-                else:
-                    print(f"⚠️  Biomarker analysis failed with status {response.status_code}")
-                    print(f"   Response: {response.text}")
+                # Download using authenticated Supabase Storage API
+                try:
+                    # Use Supabase storage download method
+                    response = supabase.storage.from_(s3_bucket).download(recording_path)
+                    
+                    if not response:
+                        print(f"⚠️  File not found in storage: {recording_path}")
+                        raise Exception("File not found")
+                    
+                    audio_content = response
+                    print(f"✅ Downloaded {len(audio_content)} bytes")
+                    
+                    # Prepare for Vital Audio API
+                    url = "https://api.qr.sonometrik.vitalaudio.io/analyze-audio"
+                    headers = {
+                        'Origin': 'https://qr.sonometrik.vitalaudio.io',
+                        'Accept': '*/*',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                        'DNT': '1',
+                    }
+                    
+                    files = {
+                        'audio_file': (recording_path.split('/')[-1], audio_content, 'audio/mp3')
+                    }
+                    data = {
+                        'name': recording_path.split('/')[-1]
+                    }
+                    
+                    print(f"🧬 Analyzing with Vital Audio API...")
+                    
+                    # Send to Vital Audio API (sync request in async context)
+                    api_response = await asyncio.to_thread(
+                        requests.post,
+                        url,
+                        files=files,
+                        data=data,
+                        headers=headers,
+                        timeout=60
+                    )
+                    
+                    if api_response.status_code == 200:
+                        biomarkers = api_response.json()
+                        
+                        # Pretty print biomarkers
+                        print(f"")
+                        print(f"=" * 60)
+                        print(f"🩺 BIOMARKERS ANALYSIS")
+                        print(f"=" * 60)
+                        print(f"📁 File: {recording_path}")
+                        print(f"")
+                        
+                        if isinstance(biomarkers, dict):
+                            for key, value in biomarkers.items():
+                                print(f"   {key}: {value}")
+                        else:
+                            print(f"   {biomarkers}")
+                        
+                        print(f"=" * 60)
+                        print(f"")
+                        
+                        # Save biomarkers directly to database
+                        try:
+                            supabase.table("calls").update({
+                                "biomarkers": biomarkers
+                            }).eq("room_name", room_name).execute()
+                            print(f"✅ Biomarkers saved to database")
+                        except Exception as e:
+                            print(f"⚠️  Failed to save biomarkers to database: {e}")
+                        
+                    else:
+                        print(f"❌ Vital Audio API error: HTTP {api_response.status_code}")
+                        print(f"   Response: {api_response.text}")
+                
+                except Exception as download_error:
+                    print(f"❌ Failed to download from storage: {download_error}")
+                    import traceback
+                    traceback.print_exc()
                     
         except Exception as e:
-            print(f"❌ Failed to trigger biomarker analysis: {e}")
+            print(f"❌ Failed biomarker analysis: {e}")
             import traceback
             traceback.print_exc()
         
