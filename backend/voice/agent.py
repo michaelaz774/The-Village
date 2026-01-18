@@ -20,8 +20,9 @@ from supabase import create_client, Client
 load_dotenv(".env.local")
 load_dotenv()  # This will load from .env if .env.local doesn't exist
 
-# Define absolute path for saving files
-PROJECT_ROOT = "/Users/amnesiac/Fall/The-Village"
+# Define absolute path for saving files (dynamic to support different environments)
+import pathlib
+PROJECT_ROOT = str(pathlib.Path(__file__).parent.parent.absolute())
 
 # Backend API configuration (for optional HTTP streaming)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
@@ -393,30 +394,68 @@ async def stream_to_backend_optional(room_name: str, speaker: str, content: str,
     Optional: Stream transcript to backend API for real-time processing (HEAD's feature).
     This enables real-time AI analysis and village network activation.
     Falls back gracefully if backend is not available.
-    """
-    try:
-        speaker_name = "Elder" if speaker == "user" else "Village Agent"
 
-        async with http_session.post(
-            f"{BACKEND_URL}/api/transcript/stream",
-            json={
-                "call_id": room_name,
-                "speaker": "elder" if speaker == "user" else "agent",
-                "speaker_name": speaker_name,
-                "text": content,
-                "timestamp": datetime.utcnow().isoformat()
-            },
-            timeout=aiohttp.ClientTimeout(total=3)
-        ) as resp:
-            if resp.status == 200:
-                print(f"  ✓ Streamed to backend for real-time analysis")
-            else:
-                print(f"  ⚠️  Backend stream returned {resp.status}")
-    except asyncio.TimeoutError:
-        print(f"  ⚠️  Backend stream timeout (backend may be offline)")
-    except Exception as e:
-        print(f"  ⚠️  Backend stream error: {e}")
-        # Don't break - this is optional functionality
+    INCLUDES RETRY LOGIC: Retries up to 3 times on 404 (call not found yet) with exponential backoff
+    """
+    speaker_name = "Elder" if speaker == "user" else "Village Agent"
+    payload = {
+        "call_id": room_name,
+        "speaker": "elder" if speaker == "user" else "agent",
+        "speaker_name": speaker_name,
+        "text": content,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    print(f"")
+    print(f"🔵 [AGENT→BACKEND] Attempting to stream transcript to backend")
+    print(f"   Room: {room_name}")
+    print(f"   Speaker: {speaker} ({speaker_name})")
+    print(f"   Content length: {len(content)} chars")
+    print(f"   Backend URL: {BACKEND_URL}/api/transcript/stream")
+    print(f"   Payload: {payload}")
+
+    max_retries = 3
+    retry_delay = 0.5  # Start with 500ms
+
+    for attempt in range(max_retries):
+        try:
+            print(f"   📡 [Attempt {attempt + 1}/{max_retries}] Sending POST request...")
+            async with http_session.post(
+                f"{BACKEND_URL}/api/transcript/stream",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=3)
+            ) as resp:
+                response_text = await resp.text()
+                print(f"   📨 [Response] Status: {resp.status}")
+                print(f"   📨 [Response] Body: {response_text}")
+
+                if resp.status == 200:
+                    if attempt > 0:
+                        print(f"  ✅ Streamed to backend (succeeded on retry #{attempt + 1})")
+                    else:
+                        print(f"  ✅ Streamed to backend for real-time analysis")
+                    return  # Success! Exit retry loop
+                elif resp.status == 404:
+                    if attempt < max_retries - 1:
+                        print(f"  🔄 Backend call not found (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        print(f"  ❌ Backend call still not found after {max_retries} attempts (room: {room_name})")
+                        return
+                else:
+                    print(f"  ⚠️  Backend stream returned {resp.status}")
+                    return  # Don't retry on other errors
+
+        except asyncio.TimeoutError:
+            print(f"  ⚠️  Backend stream timeout (backend may be offline)")
+            return  # Don't retry on timeout
+        except Exception as e:
+            print(f"  ⚠️  Backend stream error: {e}")
+            import traceback
+            traceback.print_exc()
+            return  # Don't retry on other exceptions
 
 
 if __name__ == "__main__":

@@ -36,6 +36,12 @@ export default function DemoConfigPage() {
   };
 
   const handleStartDemo = () => {
+    console.log('🚀 [DemoConfig] START DEMO button clicked');
+    console.log('📋 [DemoConfig] Mode:', mode);
+    console.log('📋 [DemoConfig] Elder phone:', elderPhone);
+    console.log('📋 [DemoConfig] My phone:', myPhone);
+    console.log('📋 [DemoConfig] Village members:', villageMembers);
+
     const config: DemoConfigType = {
       mode,
       myPhone: mode === 'all-to-me' ? myPhone : undefined,
@@ -47,8 +53,10 @@ export default function DemoConfigPage() {
       village: villageMembers.filter(m => m.enabled),
     };
 
+    console.log('💾 [DemoConfig] Saving config to localStorage:', config);
     // Store config in localStorage and navigate
     localStorage.setItem('demoConfig', JSON.stringify(config));
+    console.log('✅ [DemoConfig] Config saved, navigating to /dashboard');
     navigate('/dashboard');
   };
 

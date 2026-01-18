@@ -52,30 +52,55 @@ export default function Dashboard() {
 
   // WebSocket connection
   const handleWebSocketMessage = useCallback((event: WSEvent) => {
+    console.log('');
+    console.log('🟠 [FRONTEND] WebSocket message received');
+    console.log('   Event type:', event.type);
+    console.log('   Event data:', event.data);
+    console.log('   Current transcript length:', transcript.length);
+    console.log('   Active call:', activeCall?.id);
+
     switch (event.type) {
       case 'call_started':
+        console.log('   ✅ Processing call_started');
         console.log('Call started:', event.data);
         break;
 
       case 'call_status':
+        console.log('   ✅ Processing call_status');
         if (activeCall) {
           setActiveCall({ ...activeCall, status: event.data.status });
         }
         break;
 
       case 'transcript_update':
-        setTranscript((prev) => [...prev, event.data]);
+        console.log('   ✅ Processing transcript_update');
+        console.log('   Speaker:', event.data.speaker);
+        console.log('   Text:', event.data.text?.substring(0, 50));
+        console.log('   Transcript line ID:', event.data.id);
+        setTranscript((prev) => {
+          // Deduplicate: only add if this ID doesn't already exist
+          if (prev.some(line => line.id === event.data.id)) {
+            console.log('   ⚠️  Duplicate transcript line detected, skipping');
+            return prev;
+          }
+          const newTranscript = [...prev, event.data];
+          console.log('   📊 New transcript length:', newTranscript.length);
+          return newTranscript;
+        });
         break;
 
       case 'wellbeing_update':
+        console.log('   ✅ Processing wellbeing_update');
         setWellbeing((prev) => (prev ? { ...prev, ...event.data } : null));
         break;
 
       case 'profile_update':
+        console.log('   ✅ Processing profile_update');
         setProfileFacts((prev) => [...prev, event.data]);
         break;
 
       case 'concern_detected':
+        console.log('   ✅ Processing concern_detected');
         setConcerns((prev) => [...prev, event.data]);
         // Start timer if action required
         if (event.data.action_required && !timerRunning) {
@@ -85,10 +110,12 @@ export default function Dashboard() {
         break;
 
       case 'village_action_started':
+        console.log('   ✅ Processing village_action_started');
         setVillageActions((prev) => [...prev, event.data]);
         break;
 
       case 'village_action_update':
+        console.log('   ✅ Processing village_action_update');
         setVillageActions((prev) =>
           prev.map((action) =>
             action.id === event.data.id
@@ -99,6 +126,7 @@ export default function Dashboard() {
         break;
 
       case 'call_ended':
+        console.log('   ✅ Processing call_ended');
         if (activeCall) {
           setActiveCall({ ...activeCall, summary: event.data.summary, status: 'completed' });
           setShowSummary(true);
@@ -107,9 +135,9 @@ export default function Dashboard() {
         break;
 
       default:
-        console.log('Unknown WebSocket event:', event);
+        console.log('   ⚠️  Unknown WebSocket event:', event);
     }
-  }, [activeCall, timerRunning]);
+  }, [activeCall, timerRunning, transcript]);
 
   const { connectionStatus, send, isConnected } = useWebSocket({
     enabled: activeCall !== null, // Only connect when there's an active call
@@ -124,23 +152,34 @@ export default function Dashboard() {
     if (isConnected && activeCall) {
       console.log(`📡 Subscribing to call ${activeCall.id}`);
       send({ type: 'subscribe_call', call_id: activeCall.id });
+
+      // Also subscribe to room_name if present (for agent transcript updates)
+      if (activeCall.room_name && activeCall.room_name !== activeCall.id) {
+        console.log(`📡 Also subscribing to room ${activeCall.room_name}`);
+        send({ type: 'subscribe_call', call_id: activeCall.room_name });
+      }
     }
-  }, [isConnected, activeCall?.id, send]);
+  }, [isConnected, activeCall?.id, activeCall?.room_name, send]);
 
   // Load config on mount
   useEffect(() => {
+    console.log('📱 [Dashboard] Component mounted, loading config from localStorage');
     const stored = localStorage.getItem('demoConfig');
+
     if (!stored) {
+      console.log('❌ [Dashboard] No config found in localStorage, redirecting to /');
       navigate('/');
       return;
     }
 
+    console.log('📦 [Dashboard] Raw stored config:', stored);
     const demoConfig = JSON.parse(stored) as DemoConfig;
+    console.log('✅ [Dashboard] Parsed demoConfig:', demoConfig);
     setConfig(demoConfig);
 
     // Create a mock Elder object from DemoConfig
     const mockElder: Elder = {
-      id: 'elder-1',
+      id: '5b7c7691-5a74-44f1-88f7-2eaa58657e98', // Margaret Johnson's UUID from Supabase
       name: demoConfig.elder.name,
       age: demoConfig.elder.age,
       phone: demoConfig.elder.phone,
@@ -163,40 +202,42 @@ export default function Dashboard() {
       },
     };
 
+    console.log('👴 [Dashboard] Created mockElder:', mockElder);
     setElder(mockElder);
   }, [navigate]);
 
   const handleStartCall = async () => {
-    if (!elder) return;
+    console.log('🎬 [Dashboard] handleStartCall called');
+    console.log('👴 [Dashboard] Elder object:', elder);
+
+    if (!elder) {
+      console.log('❌ [Dashboard] No elder object, aborting');
+      return;
+    }
+
+    console.log('📞 [Dashboard] Starting call with:');
+    console.log('   - Elder ID:', elder.id);
+    console.log('   - Elder Phone:', elder.phone);
+    console.log('   - Elder Name:', elder.name);
 
     setIsLoading(true);
     try {
-      // In demo mode, create a mock call session
-      const mockCall: CallSession = {
-        id: `call-${Date.now()}`,
-        elder_id: elder.id,
-        type: 'elder_checkin',
-        started_at: new Date().toISOString(),
-        status: 'in_progress',
-        transcript: [],
-        wellbeing: null,
-        concerns: [],
-        profile_updates: [],
-        village_actions: [],
-      };
+      // Call the API FIRST to get the real call ID from backend
+      console.log('🌐 [Dashboard] Calling API: api.startCall()');
+      console.log('   Request: elder_id =', elder.id);
+      console.log('   Request: phone_number =', elder.phone);
 
-      setActiveCall(mockCall);
+      const response = await api.startCall(elder.id, elder.phone);
+      console.log('✅ [Dashboard] API call successful, got call session:', response);
+
+      // Use the REAL call session from backend (with correct UUID)
+      setActiveCall(response);
       setTranscript([]);
       setConcerns([]);
       setVillageActions([]);
       setWellbeing(null);
 
-      // Call the API (this will fail if backend isn't running, but that's okay for now)
-      try {
-        await api.startCall(elder.id);
-      } catch (error) {
-        console.warn('Backend not available, running in demo mode:', error);
-      }
+      console.log('📱 [Dashboard] Set active call with backend ID:', response.id);
     } catch (error) {
       console.error('Failed to start call:', error);
     } finally {
@@ -276,10 +317,13 @@ export default function Dashboard() {
 
         {/* Live Transcript (only show during active call) */}
         {activeCall && (
-          <LiveTranscript
-            lines={transcript}
-            isActive={activeCall.status === 'in_progress'}
-          />
+          <>
+            {console.log('📺 [Dashboard] Rendering LiveTranscript with transcript:', transcript)}
+            <LiveTranscript
+              lines={transcript}
+              isActive={activeCall.status === 'in_progress'}
+            />
+          </>
         )}
 
         {/* Wellbeing Dashboard */}

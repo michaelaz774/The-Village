@@ -14,6 +14,7 @@ class ApiClient {
     options?: RequestInit
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    console.log(`🔗 [API] Making ${options?.method || 'GET'} request to: ${url}`);
 
     try {
       const response = await fetch(url, {
@@ -24,14 +25,19 @@ class ApiClient {
         },
       });
 
+      console.log(`📡 [API] Response status: ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
         const error = await response.text();
+        console.error(`❌ [API] Error response:`, error);
         throw new Error(`API Error: ${response.status} - ${error}`);
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log(`✅ [API] Response data:`, data);
+      return data;
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error('❌ [API] Request failed:', error);
       throw error;
     }
   }
@@ -46,10 +52,21 @@ class ApiClient {
   }
 
   // Call endpoints
-  async startCall(elderId: string): Promise<CallSession> {
+  async startCall(elderId: string, phoneNumber?: string): Promise<CallSession> {
+    console.log('🌐 [API] startCall() called');
+    console.log('   - elderId:', elderId);
+    console.log('   - phoneNumber:', phoneNumber);
+    console.log('   - API endpoint:', `${this.baseUrl}/api/call/start`);
+
+    const requestBody = {
+      elder_id: elderId,
+      phone_number: phoneNumber
+    };
+    console.log('   - Request body:', requestBody);
+
     return this.request<CallSession>('/api/call/start', {
       method: 'POST',
-      body: JSON.stringify({ elder_id: elderId }),
+      body: JSON.stringify(requestBody),
     });
   }
 

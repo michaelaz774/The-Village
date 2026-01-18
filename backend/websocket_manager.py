@@ -64,22 +64,35 @@ class ConnectionManager:
 
     async def broadcast_to_call(self, call_id: str, message: dict):
         """Broadcast a message to all clients subscribed to a specific call."""
+        print(f"")
+        print(f"🔴 [WEBSOCKET] Broadcasting to call subscribers")
+        print(f"   Call ID: {call_id}")
+        print(f"   Message type: {message.get('type')}")
+        print(f"   All call subscriptions: {list(self.call_subscriptions.keys())}")
+
         if call_id not in self.call_subscriptions:
+            print(f"   ⚠️  No subscribers found for call_id: {call_id}")
             return
 
         disconnected = set()
         subscribers = self.call_subscriptions[call_id].copy()
+        print(f"   ✅ Found {len(subscribers)} subscribers for call_id: {call_id}")
 
         for connection in subscribers:
             try:
+                print(f"   📤 Sending message to subscriber...")
                 await connection.send_json(message)
+                print(f"   ✅ Message sent successfully")
             except Exception as e:
                 logger.error(f"Error broadcasting to call subscriber: {e}")
+                print(f"   ❌ Failed to send to subscriber: {e}")
                 disconnected.add(connection)
 
         # Clean up disconnected clients
         for connection in disconnected:
             self.disconnect(connection)
+
+        print(f"   ✅ Broadcast complete (sent to {len(subscribers) - len(disconnected)} clients)")
 
     # ========================================================================
     # Event Helper Methods (matching frontend WSEvent types)
@@ -105,12 +118,29 @@ class ConnectionManager:
             }
         })
 
-    async def emit_transcript_update(self, call_id: str, transcript_line: dict):
-        """Emit transcript_update event."""
-        await self.broadcast_to_call(call_id, {
+    async def emit_transcript_update(self, call_id: str, transcript_line: dict, room_name: str = None):
+        """Emit transcript_update event. Broadcasts to both call_id and room_name subscribers."""
+        print(f"")
+        print(f"🟣 [WS_MANAGER] emit_transcript_update called")
+        print(f"   Call ID: {call_id}")
+        print(f"   Room name: {room_name}")
+        print(f"   Transcript line: {transcript_line.get('speaker')} - {transcript_line.get('text', '')[:50]}...")
+
+        message = {
             "type": "transcript_update",
             "data": transcript_line
-        })
+        }
+
+        # Broadcast to call_id subscribers
+        print(f"   📡 Broadcasting to call_id: {call_id}")
+        await self.broadcast_to_call(call_id, message)
+
+        # Also broadcast to room_name subscribers if provided
+        if room_name and room_name != call_id:
+            print(f"   📡 Also broadcasting to room_name: {room_name}")
+            await self.broadcast_to_call(room_name, message)
+
+        print(f"   ✅ emit_transcript_update complete")
 
     async def emit_biometric_update(self, call_id: str, biometric_data: dict):
         """Emit biometric_update event."""
@@ -119,26 +149,35 @@ class ConnectionManager:
             "data": biometric_data
         })
 
-    async def emit_wellbeing_update(self, call_id: str, wellbeing_data: dict):
-        """Emit wellbeing_update event."""
-        await self.broadcast_to_call(call_id, {
+    async def emit_wellbeing_update(self, call_id: str, wellbeing_data: dict, room_name: str = None):
+        """Emit wellbeing_update event. Broadcasts to both call_id and room_name subscribers."""
+        message = {
             "type": "wellbeing_update",
             "data": wellbeing_data
-        })
+        }
+        await self.broadcast_to_call(call_id, message)
+        if room_name and room_name != call_id:
+            await self.broadcast_to_call(room_name, message)
 
-    async def emit_profile_update(self, call_id: str, profile_fact: dict):
-        """Emit profile_update event."""
-        await self.broadcast_to_call(call_id, {
+    async def emit_profile_update(self, call_id: str, profile_fact: dict, room_name: str = None):
+        """Emit profile_update event. Broadcasts to both call_id and room_name subscribers."""
+        message = {
             "type": "profile_update",
             "data": profile_fact
-        })
+        }
+        await self.broadcast_to_call(call_id, message)
+        if room_name and room_name != call_id:
+            await self.broadcast_to_call(room_name, message)
 
-    async def emit_concern_detected(self, call_id: str, concern: dict):
-        """Emit concern_detected event."""
-        await self.broadcast_to_call(call_id, {
+    async def emit_concern_detected(self, call_id: str, concern: dict, room_name: str = None):
+        """Emit concern_detected event. Broadcasts to both call_id and room_name subscribers."""
+        message = {
             "type": "concern_detected",
             "data": concern
-        })
+        }
+        await self.broadcast_to_call(call_id, message)
+        if room_name and room_name != call_id:
+            await self.broadcast_to_call(room_name, message)
 
     async def emit_village_action_started(self, call_id: str, action: dict):
         """Emit village_action_started event."""

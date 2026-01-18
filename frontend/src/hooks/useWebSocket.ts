@@ -47,10 +47,18 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       ws.onmessage = (event) => {
         try {
+          console.log('');
+          console.log('🟡 [WS_HOOK] Raw WebSocket message received');
+          console.log('   Raw data:', event.data);
           const data: WSEvent = JSON.parse(event.data);
+          console.log('   Parsed event type:', data.type);
+          console.log('   Parsed event data:', data.data);
+          console.log('   ✅ Calling onMessage handler...');
           onMessage?.(data);
+          console.log('   ✅ onMessage handler complete');
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
+          console.error('❌ Failed to parse WebSocket message:', error);
+          console.error('   Raw data:', event.data);
         }
       };
 
@@ -100,10 +108,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, []);
 
   const send = useCallback((data: any) => {
+    console.log('');
+    console.log('🟢 [WS_HOOK] Sending message to WebSocket');
+    console.log('   Message:', data);
+    console.log('   WS state:', wsRef.current?.readyState);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data));
+      console.log('   ✅ Message sent');
     } else {
-      console.warn('WebSocket is not connected. Cannot send message.');
+      console.warn('   ⚠️  WebSocket is not connected. Cannot send message.');
     }
   }, []);
 

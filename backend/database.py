@@ -1,10 +1,12 @@
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Try loading from .env.local first, then .env
-load_dotenv(".env.local")
-load_dotenv()
+# Load .env from the backend directory (where this file is located)
+backend_dir = Path(__file__).parent
+load_dotenv(backend_dir / ".env.local")
+load_dotenv(backend_dir / ".env")
 
 # Try to import supabase, but gracefully handle if not installed
 try:

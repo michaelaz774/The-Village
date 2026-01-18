@@ -162,7 +162,7 @@ class TranscriptLine(BaseModel):
     speaker: Literal["agent", "elder", "village_member"]
     speaker_name: str
     text: str
-    timestamp: datetime
+    timestamp: str  # ISO format timestamp string for JSON serialization
 
 
 class Concern(BaseModel):
@@ -208,12 +208,14 @@ class CallSummary(BaseModel):
 class CallSession(BaseModel):
     id: str
     elder_id: str
+    room_name: Optional[str] = None  # LiveKit room name (e.g., "call_ac9b0afd")
     type: Literal["elder_checkin", "village_outbound"]
     target_member: Optional[VillageMember] = None
     started_at: datetime
     ended_at: Optional[datetime] = None
     duration_seconds: Optional[int] = None
     status: CallStatus
+    recording_path: Optional[str] = None  # Path to audio recording (e.g., "recordings/room_name.mp3")
     transcript: List[TranscriptLine] = []
     wellbeing: Optional[WellbeingAssessment] = None
     concerns: List[Concern] = []

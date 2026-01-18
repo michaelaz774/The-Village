@@ -21,8 +21,14 @@ import asyncio
 import httpx
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables - try multiple locations
+from pathlib import Path
+load_dotenv()  # Try current directory first
+# Also try backend/.env if running from project root
+backend_env = Path(__file__).parent / ".env"
+if backend_env.exists():
+    load_dotenv(backend_env)
+    print(f"✅ Loaded environment from: {backend_env}")
 
 # Request models for API endpoints
 class CallRequest(BaseModel):
@@ -32,6 +38,7 @@ class CallRequest(BaseModel):
 
 class StartCallRequest(BaseModel):
     elder_id: str
+    phone_number: Optional[str] = None  # Frontend can override elder.phone with this
 
 class TranscriptEntry(BaseModel):
     timestamp: str
@@ -134,7 +141,8 @@ async def start_call_api(request: StartCallRequest) -> CallSession:
     MERGED: HEAD's structure + Remote's recording infrastructure
     """
     # Get elder profile
-    if request.elder_id == "margaret" or request.elder_id == margaret_elder.id:
+    # Accept: "margaret", the hardcoded ID, or the database UUID
+    if request.elder_id == "margaret" or request.elder_id == margaret_elder.id or request.elder_id == "5b7c7691-5a74-44f1-88f7-2eaa58657e98":
         elder = margaret_elder
     else:
         raise HTTPException(status_code=404, detail=f"Elder not found: {request.elder_id}")
@@ -146,6 +154,7 @@ async def start_call_api(request: StartCallRequest) -> CallSession:
     call_session = CallSession(
         id=call_id,
         elder_id=elder.id,
+        room_name=room_name,  # Store LiveKit room name for agent lookup
         type="elder_checkin",
         started_at=datetime.utcnow(),
         status=CallStatus.RINGING,
@@ -162,22 +171,34 @@ async def start_call_api(request: StartCallRequest) -> CallSession:
     await ws_manager.emit_call_started(call_id, elder.id)
 
     # Initialize LiveKit and setup recording (from Remote)
+    print(f"\n{'='*60}")
+    print(f"🔍 [DEBUG] Checking LiveKit credentials:")
+    print(f"   - LIVEKIT_API_KEY: {'✓ SET' if LIVEKIT_API_KEY else '✗ NOT SET'}")
+    print(f"   - LIVEKIT_API_SECRET: {'✓ SET' if LIVEKIT_API_SECRET else '✗ NOT SET'}")
+    print(f"   - LIVEKIT_URL: {'✓ SET' if LIVEKIT_URL else '✗ NOT SET'}")
+    print(f"   - SIP_TRUNK_ID: {'✓ SET' if SIP_TRUNK_ID else '✗ NOT SET'}")
+    print(f"   - Phone to call: {request.phone_number or elder.phone}")
+    print(f"{'='*60}\n")
+
     if LIVEKIT_API_KEY and LIVEKIT_API_SECRET and LIVEKIT_URL:
         try:
             lk_api = api.LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
 
             # Create SIP participant if phone number available
-            if elder.phone:
+            # Use frontend-provided phone_number if available, otherwise fall back to elder.phone
+            phone_to_call = request.phone_number or elder.phone
+
+            if phone_to_call:
                 try:
                     sip_request = api.CreateSIPParticipantRequest(
                         sip_trunk_id=SIP_TRUNK_ID,
-                        sip_call_to=elder.phone,
+                        sip_call_to=phone_to_call,
                         room_name=room_name,
                         participant_identity=f"elder_{request.elder_id}",
                         participant_name=elder.name,
                     )
 
-                    print(f"📱 Calling {elder.phone}...")
+                    print(f"📱 Calling {phone_to_call}...")
                     sip_participant = await lk_api.sip.create_sip_participant(sip_request)
                     print(f"✅ SIP call initiated")
 
@@ -387,14 +408,42 @@ async def stream_transcript_chunk(chunk: TranscriptChunkRequest):
     1. Store the transcript line
     2. Trigger AI analysis
     3. Broadcast to WebSocket subscribers
+
+    NOTE: call_id can be either a UUID (call ID) or a room_name (LiveKit room)
     """
-    call_id = chunk.call_id
+    print(f"")
+    print(f"🟢 [BACKEND] Received transcript stream request")
+    print(f"   Call ID: {chunk.call_id}")
+    print(f"   Speaker: {chunk.speaker} ({chunk.speaker_name})")
+    print(f"   Text: {chunk.text[:100]}..." if len(chunk.text) > 100 else f"   Text: {chunk.text}")
+    print(f"   Timestamp: {chunk.timestamp}")
 
-    # Check if call exists
-    if call_id not in active_calls:
-        raise HTTPException(status_code=404, detail=f"Call not found: {call_id}")
+    identifier = chunk.call_id  # Can be UUID or room_name
 
-    call = active_calls[call_id]
+    print(f"   🔍 Looking up call with identifier: {identifier}")
+    print(f"   📋 Active calls: {list(active_calls.keys())}")
+
+    # Try to find call by call_id first (UUID)
+    if identifier in active_calls:
+        call = active_calls[identifier]
+        call_id = identifier
+        print(f"   ✅ Found call by UUID: {call_id}")
+    else:
+        # Try to find by room_name
+        call = None
+        call_id = None
+        for cid, c in active_calls.items():
+            print(f"   🔍 Checking call {cid}: room_name={c.room_name}")
+            if c.room_name == identifier:
+                call = c
+                call_id = cid
+                print(f"   ✅ Found call by room_name: {call_id}")
+                break
+
+        if not call:
+            print(f"   ❌ Call not found! Identifier: {identifier}")
+            print(f"   📋 Available room names: {[c.room_name for c in active_calls.values()]}")
+            raise HTTPException(status_code=404, detail=f"Call not found: {identifier}")
 
     # Create transcript line
     transcript_line = TranscriptLine(
@@ -405,11 +454,18 @@ async def stream_transcript_chunk(chunk: TranscriptChunkRequest):
         timestamp=chunk.timestamp or datetime.utcnow().isoformat()
     )
 
+    print(f"   ✅ Created transcript line: {transcript_line.id}")
+
     # Add to call transcript
     call.transcript.append(transcript_line)
+    print(f"   ✅ Added to call transcript (now {len(call.transcript)} lines)")
 
-    # Broadcast to WebSocket subscribers
-    await ws_manager.emit_transcript_update(call_id, transcript_line.dict())
+    # Broadcast to WebSocket subscribers (both UUID call_id AND room_name)
+    print(f"   📡 Broadcasting to WebSocket subscribers...")
+    print(f"      - Call ID: {call_id}")
+    print(f"      - Room name: {call.room_name}")
+    await ws_manager.emit_transcript_update(call_id, transcript_line.dict(), room_name=call.room_name)
+    print(f"   ✅ WebSocket broadcast complete")
 
     # Get elder profile
     elder = margaret_elder  # For now, hardcoded to Margaret
@@ -418,8 +474,10 @@ async def stream_transcript_chunk(chunk: TranscriptChunkRequest):
         pass
 
     # Trigger AI analysis in the background (non-blocking)
+    print(f"   🤖 Triggering AI analysis in background...")
     asyncio.create_task(analyze_and_update_call(call, elder, transcript_line))
 
+    print(f"   ✅ Transcript stream request complete")
     return {"status": "success", "transcript_line_id": transcript_line.id}
 
 
@@ -435,12 +493,12 @@ async def analyze_and_update_call(call: CallSession, elder: Elder, transcript_li
         # Update wellbeing assessment
         if analysis.get("wellbeing_update"):
             call.wellbeing = analysis["wellbeing_update"]
-            await ws_manager.emit_wellbeing_update(call.id, analysis["wellbeing_update"].dict())
+            await ws_manager.emit_wellbeing_update(call.id, analysis["wellbeing_update"].dict(), room_name=call.room_name)
 
         # Add detected concerns
         for concern in analysis.get("concerns", []):
             call.concerns.append(concern)
-            await ws_manager.emit_concern_detected(call.id, concern.dict())
+            await ws_manager.emit_concern_detected(call.id, concern.dict(), room_name=call.room_name)
 
             # Start timer if action required
             if concern.action_required:
@@ -449,7 +507,7 @@ async def analyze_and_update_call(call: CallSession, elder: Elder, transcript_li
         # Add profile facts
         for fact in analysis.get("profile_facts", []):
             call.profile_updates.append(fact)
-            await ws_manager.emit_profile_update(call.id, fact.dict())
+            await ws_manager.emit_profile_update(call.id, fact.dict(), room_name=call.room_name)
 
         # Trigger village actions
         for suggested_action in analysis.get("suggested_actions", []):

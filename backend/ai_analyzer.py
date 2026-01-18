@@ -163,15 +163,35 @@ Analyze this conversation and provide a JSON response with the following structu
 
 {{
   "wellbeing": {{
-    "mood_score": <1-10, where 1=very poor, 10=excellent>,
-    "mood_indicators": ["specific phrases or observations"],
-    "energy_level": <1-10>,
-    "energy_indicators": ["observations"],
-    "cognitive_clarity": <1-10>,
-    "cognitive_indicators": ["observations"],
-    "social_engagement": <1-10>,
-    "social_indicators": ["observations"],
-    "overall_assessment": "brief summary"
+    "mood": "description of current mood",
+    "loneliness_level": "none|mild|moderate|high",
+    "grief_indicators": true|false,
+    "fear_indicators": true|false,
+    "hope_indicators": true|false,
+    "emotional_notes": "any emotional observations",
+    "depression_indicators": ["specific observations"],
+    "anxiety_indicators": ["specific observations"],
+    "purpose_level": "strong|moderate|low|absent",
+    "mental_pattern_change": true|false,
+    "mental_notes": "any mental health observations",
+    "family_contact_recency": "when they last spoke to family",
+    "isolation_level": "none|mild|moderate|severe",
+    "community_engagement": "description of social activities",
+    "support_network_strength": "strong|moderate|weak",
+    "social_notes": "any social observations",
+    "pain_reported": true|false,
+    "pain_details": "description if pain reported",
+    "mobility_concerns": true|false,
+    "sleep_issues": true|false,
+    "nutrition_concerns": true|false,
+    "medication_issues": true|false,
+    "energy_level": "good|low|very_low",
+    "physical_notes": "any physical observations",
+    "memory_concerns": true|false,
+    "orientation_issues": true|false,
+    "cognitive_baseline_change": true|false,
+    "cognitive_notes": "any cognitive observations",
+    "overall_concern_level": "none|low|moderate|high|critical"
   }},
   "concerns": [
     {{
@@ -232,14 +252,59 @@ Respond with ONLY valid JSON, no additional text."""
         if not wellbeing_data:
             return None
 
+        from backend.models import EmotionalState, MentalState, SocialState, PhysicalState, CognitiveState
+
+        # Map AI analysis to proper model structure
+        emotional = EmotionalState(
+            current_mood=wellbeing_data.get("mood", "neutral"),
+            loneliness_level=wellbeing_data.get("loneliness_level", "none"),
+            grief_indicators=wellbeing_data.get("grief_indicators", False),
+            fear_indicators=wellbeing_data.get("fear_indicators", False),
+            hope_indicators=wellbeing_data.get("hope_indicators", False),
+            notes=wellbeing_data.get("emotional_notes", "")
+        )
+
+        mental = MentalState(
+            depression_indicators=wellbeing_data.get("depression_indicators", []),
+            anxiety_indicators=wellbeing_data.get("anxiety_indicators", []),
+            purpose_level=wellbeing_data.get("purpose_level", "moderate"),
+            pattern_change=wellbeing_data.get("mental_pattern_change", False),
+            notes=wellbeing_data.get("mental_notes", "")
+        )
+
+        social = SocialState(
+            family_contact_recency=wellbeing_data.get("family_contact_recency", "unknown"),
+            isolation_level=wellbeing_data.get("isolation_level", "none"),
+            community_engagement=wellbeing_data.get("community_engagement", "unknown"),
+            support_network_strength=wellbeing_data.get("support_network_strength", "moderate"),
+            notes=wellbeing_data.get("social_notes", "")
+        )
+
+        physical = PhysicalState(
+            pain_reported=wellbeing_data.get("pain_reported", False),
+            pain_details=wellbeing_data.get("pain_details"),
+            mobility_concerns=wellbeing_data.get("mobility_concerns", False),
+            sleep_issues=wellbeing_data.get("sleep_issues", False),
+            nutrition_concerns=wellbeing_data.get("nutrition_concerns", False),
+            medication_issues=wellbeing_data.get("medication_issues", False),
+            energy_level=wellbeing_data.get("energy_level", "good"),
+            notes=wellbeing_data.get("physical_notes", "")
+        )
+
+        cognitive = CognitiveState(
+            memory_concerns=wellbeing_data.get("memory_concerns", False),
+            orientation_issues=wellbeing_data.get("orientation_issues", False),
+            baseline_change=wellbeing_data.get("cognitive_baseline_change", False),
+            notes=wellbeing_data.get("cognitive_notes", "")
+        )
+
         return WellbeingAssessment(
-            mood_score=wellbeing_data.get("mood_score"),
-            mood_indicators=wellbeing_data.get("mood_indicators", []),
-            energy_level=wellbeing_data.get("energy_level"),
-            cognitive_clarity=wellbeing_data.get("cognitive_clarity"),
-            social_engagement=wellbeing_data.get("social_engagement"),
-            concerns_detected=len(wellbeing_data.get("concerns", [])),
-            timestamp=datetime.utcnow().isoformat()
+            emotional=emotional,
+            mental=mental,
+            social=social,
+            physical=physical,
+            cognitive=cognitive,
+            overall_concern_level=wellbeing_data.get("overall_concern_level", "none")
         )
 
     def _detect_concerns(self, call_id: str, concerns_data: List[Dict], context: Dict) -> List[Concern]:

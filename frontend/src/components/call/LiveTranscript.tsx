@@ -10,7 +10,14 @@ interface LiveTranscriptProps {
 export default function LiveTranscript({ lines, isActive }: LiveTranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  console.log('');
+  console.log('🎨 [LiveTranscript] Component rendering');
+  console.log('   Lines prop length:', lines.length);
+  console.log('   Lines prop:', lines);
+  console.log('   Is active:', isActive);
+
   useEffect(() => {
+    console.log('   🔄 [LiveTranscript] Lines changed, scrolling...');
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
