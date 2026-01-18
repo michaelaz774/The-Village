@@ -92,3 +92,9 @@ class GetElderlyResponse(BaseModel):
     elderly: Elderly
     total_calls: int
     recent_calls: List[Call]
+
+
+class GetBiomarkersRequest(BaseModel):
+    """Request to get biomarkers for an audio recording"""
+    recording_path: str
+    room_name: Optional[str] = None

@@ -172,24 +172,33 @@ async def my_agent(ctx: agents.JobContext):
     def on_conversation_item_added(event):
         """Capture all conversation items (user + agent) as they're added to chat history"""
         try:
+            print(f"🎤 [DEBUG] Conversation item added - processing...")
+
             # The event has an 'item' attribute which contains the ChatMessage
             chat_message = event.item if hasattr(event, 'item') else event
-            
+            print(f"📨 [DEBUG] Chat message object: {type(chat_message)}")
+
             # Extract role and content from the chat message
             role = chat_message.role if hasattr(chat_message, 'role') else "unknown"
-            
+            print(f"👥 [DEBUG] Detected role: {role}")
+
             # Content is usually a list, so join or take first element
             if hasattr(chat_message, 'content'):
                 content = chat_message.content
+                print(f"📝 [DEBUG] Raw content: {content} (type: {type(content)})")
                 if isinstance(content, list) and len(content) > 0:
                     content = content[0]  # Take first element if it's a list
+                    print(f"📝 [DEBUG] Using first element from list: {content}")
                 elif isinstance(content, list):
                     content = ""
+                    print(f"📝 [DEBUG] Empty list, using empty string")
                 else:
                     content = str(content)
+                    print(f"📝 [DEBUG] Converted to string: {content}")
             else:
                 content = str(chat_message)
-            
+                print(f"📝 [DEBUG] No content attr, using str(): {content}")
+
             # Map role to speaker (user or assistant/agent)
             if role in ["user", "human"]:
                 speaker = "user"
@@ -200,16 +209,19 @@ async def my_agent(ctx: agents.JobContext):
             else:
                 speaker = role
                 emoji = "💬"
-            
+
+            print(f"✅ [DEBUG] Final speaker: {speaker}, content length: {len(content)}")
+
             # Add to transcript
             transcript.append({
                 "timestamp": datetime.utcnow().isoformat(),
                 "speaker": speaker,
                 "text": content
             })
-            
+
             print(f"{emoji} [{speaker.upper()}]: {content}")
-            
+            print(f"📊 [DEBUG] Transcript now has {len(transcript)} messages")
+
         except Exception as e:
             print(f"❌ Error in conversation_item_added: {e}")
             print(f"🔍 Event type: {type(event)}")
@@ -280,112 +292,59 @@ async def my_agent(ctx: agents.JobContext):
             import traceback
             traceback.print_exc()
         
-        # Trigger biomarker analysis - download with authentication
-        print(f"")
-        print(f"⏳ Waiting 15 seconds for recording to finalize in S3...")
-        await asyncio.sleep(15)
-        
+        # Trigger biomarker analysis via FastAPI (non-blocking webhook)
         try:
-            # Construct expected recording path (matches what we set in main.py)
-            recording_timestamp = call_start_time.strftime('%Y%m%d_%H%M%S')
-            recording_path = f"recordings/{room_name}_{recording_timestamp}.mp3"
-            
-            print(f"🧬 Starting biomarker analysis for: {recording_path}")
-            
-            # Get S3 config
-            s3_bucket = os.getenv("S3_BUCKET")
-            
-            if not supabase or not s3_bucket:
-                print(f"⚠️  Supabase or S3 not configured, skipping biomarker analysis")
-            else:
-                print(f"📥 Downloading audio from Supabase Storage (authenticated)...")
-                
-                # Download using authenticated Supabase Storage API
+            # Debug: Show timestamp info
+            now_timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            call_timestamp = call_start_time.strftime('%Y%m%d_%H%M%S')
+            print(f"🕐 [DEBUG] Call start time: {call_timestamp}")
+            print(f"🕐 [DEBUG] Current time: {now_timestamp}")
+            print(f"🕐 [DEBUG] Time difference: {(datetime.utcnow() - call_start_time).total_seconds()} seconds")
+
+            # Get the recording path from database instead of reconstructing it
+            recording_path = None
+            if supabase:
                 try:
-                    # Use Supabase storage download method
-                    response = supabase.storage.from_(s3_bucket).download(recording_path)
-                    
-                    if not response:
-                        print(f"⚠️  File not found in storage: {recording_path}")
-                        raise Exception("File not found")
-                    
-                    audio_content = response
-                    print(f"✅ Downloaded {len(audio_content)} bytes")
-                    
-                    # Prepare for Vital Audio API
-                    url = "https://api.qr.sonometrik.vitalaudio.io/analyze-audio"
-                    headers = {
-                        'Origin': 'https://qr.sonometrik.vitalaudio.io',
-                        'Accept': '*/*',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                        'DNT': '1',
-                    }
-                    
-                    files = {
-                        'audio_file': (recording_path.split('/')[-1], audio_content, 'audio/mp3')
-                    }
-                    data = {
-                        'name': recording_path.split('/')[-1]
-                    }
-                    
-                    print(f"🧬 Analyzing with Vital Audio API...")
-                    
-                    # Send to Vital Audio API (sync request in async context)
-                    api_response = await asyncio.to_thread(
-                        requests.post,
-                        url,
-                        files=files,
-                        data=data,
-                        headers=headers,
-                        timeout=60
-                    )
-                    
-                    if api_response.status_code == 200:
-                        biomarkers = api_response.json()
-                        
-                        # Pretty print biomarkers
-                        print(f"")
-                        print(f"=" * 60)
-                        print(f"🩺 BIOMARKERS ANALYSIS")
-                        print(f"=" * 60)
-                        print(f"📁 File: {recording_path}")
-                        print(f"")
-                        
-                        if isinstance(biomarkers, dict):
-                            for key, value in biomarkers.items():
-                                print(f"   {key}: {value}")
-                        else:
-                            print(f"   {biomarkers}")
-                        
-                        print(f"=" * 60)
-                        print(f"")
-                        
-                        # Save biomarkers directly to database
-                        try:
-                            supabase.table("calls").update({
-                                "biomarkers": biomarkers
-                            }).eq("room_name", room_name).execute()
-                            print(f"✅ Biomarkers saved to database")
-                        except Exception as e:
-                            print(f"⚠️  Failed to save biomarkers to database: {e}")
-                        
+                    call_record = supabase.table("calls").select("recording_path").eq("room_name", room_name).single().execute()
+                    if call_record.data and call_record.data.get("recording_path"):
+                        recording_path = call_record.data["recording_path"]
+                        print(f"✅ Retrieved recording path from database: {recording_path}")
                     else:
-                        print(f"❌ Vital Audio API error: HTTP {api_response.status_code}")
-                        print(f"   Response: {api_response.text}")
+                        print(f"⚠️  No recording path found in database for room: {room_name}")
+                except Exception as db_error:
+                    print(f"⚠️  Could not retrieve recording path from database: {db_error}")
+
+            # Fallback to reconstructing path if database query failed
+            if not recording_path:
+                recording_timestamp = call_start_time.strftime('%Y%m%d_%H%M%S')
+                recording_path = f"recordings/{room_name}_{recording_timestamp}.mp3"
+                print(f"🔄 Using fallback reconstructed path: {recording_path}")
+
+            print(f"")
+            print(f"🎯 Triggering biomarker analysis via FastAPI...")
+            print(f"📁 Recording: {recording_path}")
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "http://localhost:8000/trigger_biomarker_analysis",
+                    params={
+                        "room_name": room_name,
+                        "recording_path": recording_path
+                    },
+                    timeout=5.0
+                )
                 
-                except Exception as download_error:
-                    print(f"❌ Failed to download from storage: {download_error}")
-                    import traceback
-                    traceback.print_exc()
+                if response.status_code == 200:
+                    print(f"✅ Biomarker analysis queued successfully")
+                else:
+                    print(f"⚠️  Failed to queue biomarker analysis: HTTP {response.status_code}")
                     
         except Exception as e:
-            print(f"❌ Failed biomarker analysis: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        print(f"=" * 60)
-        print(f"")
+            print(f"⚠️  Could not trigger biomarker analysis: {e}")
+            print(f"   (FastAPI server may not be running)")
+    
+    # Register event handler
+    session.on("conversation_item_added")(on_conversation_item_added)
     
     # Register shutdown callback
     ctx.add_shutdown_callback(save_transcript_on_shutdown)
