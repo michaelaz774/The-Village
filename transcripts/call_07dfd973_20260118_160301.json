@@ -1,0 +1,51 @@
+{
+  "room_name": "call_07dfd973",
+  "transcript": [
+    {
+      "timestamp": "2026-01-18T16:02:14.650118",
+      "speaker": "agent",
+      "text": "Hello! It's Elina"
+    },
+    {
+      "timestamp": "2026-01-18T16:02:14.660138",
+      "speaker": "user",
+      "text": "Hello"
+    },
+    {
+      "timestamp": "2026-01-18T16:02:20.560813",
+      "speaker": "agent",
+      "text": "Hello"
+    },
+    {
+      "timestamp": "2026-01-18T16:02:20.571070",
+      "speaker": "user",
+      "text": "Oh dude the slide doesn't work and dude like it's okay interrupt is messing up."
+    },
+    {
+      "timestamp": "2026-01-18T16:02:26.298267",
+      "speaker": "user",
+      "text": "That's like you don't get the logs on your terminal as well."
+    },
+    {
+      "timestamp": "2026-01-18T16:02:27.452806",
+      "speaker": "user",
+      "text": "Because they're supposed to send the logs"
+    },
+    {
+      "timestamp": "2026-01-18T16:02:36.247300",
+      "speaker": "user",
+      "text": "There was an import for multilingual model that's supposed to help with this. That you had commented out should I put it back in."
+    },
+    {
+      "timestamp": "2026-01-18T16:02:40.368786",
+      "speaker": "user",
+      "text": "Because what I noticed that when we speak it just shuts the fuck off like look."
+    }
+  ],
+  "started_at": "2026-01-18T16:02:08.314127",
+  "ended_at": "2026-01-18T16:03:01.265243",
+  "duration_seconds": 52.95,
+  "total_messages": 8,
+  "user_messages": 6,
+  "agent_messages": 2
+}
