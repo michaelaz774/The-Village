@@ -39,7 +39,7 @@ export default function LandingPage() {
             transition={{ delay: 0.3, duration: 0.8 }}
             className="text-3xl text-white drop-shadow-lg mb-4 font-medium"
           >
-            holistic wellbeing system
+           raising the elderly 
           </motion.p>
           <motion.p
             initial={{ opacity: 0 }}
