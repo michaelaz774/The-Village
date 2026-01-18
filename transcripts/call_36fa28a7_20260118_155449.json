@@ -1,0 +1,31 @@
+{
+  "room_name": "call_36fa28a7",
+  "transcript": [
+    {
+      "timestamp": "2026-01-18T15:53:39.095081",
+      "speaker": "user",
+      "text": "If you record your name and reason for calling. I'll see if this person is available."
+    },
+    {
+      "timestamp": "2026-01-18T15:53:53.869037",
+      "speaker": "agent",
+      "text": "Oh, hello there! Yes, of course. My name is Elina, and I'm calling from the Village program. I just wanted to check in and see how [Elderly Person's Name] is doing today. We usually have a nice chat once a week."
+    },
+    {
+      "timestamp": "2026-01-18T15:54:02.897143",
+      "speaker": "user",
+      "text": "Thanks. Alina. Please stay on the line."
+    },
+    {
+      "timestamp": "2026-01-18T15:54:07.214100",
+      "speaker": "agent",
+      "text": "Thank you, I will. I appreciate it."
+    }
+  ],
+  "started_at": "2026-01-18T15:53:33.118719",
+  "ended_at": "2026-01-18T15:54:49.571365",
+  "duration_seconds": 76.45,
+  "total_messages": 4,
+  "user_messages": 2,
+  "agent_messages": 2
+}

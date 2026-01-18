@@ -1,0 +1,56 @@
+{
+  "room_name": "call_8a28e7f9",
+  "transcript": [
+    {
+      "timestamp": "2026-01-18T15:58:16.920462",
+      "speaker": "user",
+      "text": "And reason for calling I'll see if this person is available."
+    },
+    {
+      "timestamp": "2026-01-18T15:58:31.258702",
+      "speaker": "agent",
+      "text": "**(Warm, friendly voice, unhurried)**\n\n\"Hello there! Is this [Elderly Person's Name]? Hi, it's Elina calling from Village. How are you doing today? I was just calling to check in and see how things are going. Are you free for a little chat right now?\""
+    },
+    {
+      "timestamp": "2026-01-18T15:58:38.879262",
+      "speaker": "user",
+      "text": "Thanks. Alina. Please stay on the line."
+    },
+    {
+      "timestamp": "2026-01-18T15:58:41.824564",
+      "speaker": "agent",
+      "text": "**(Softly, warmly)**\n\n\"Thank you, I will. I'll just wait here.\""
+    },
+    {
+      "timestamp": "2026-01-18T15:58:42.278747",
+      "speaker": "user",
+      "text": "Hel"
+    },
+    {
+      "timestamp": "2026-01-18T15:58:43.257610",
+      "speaker": "user",
+      "text": "Lo"
+    },
+    {
+      "timestamp": "2026-01-18T15:58:52.326021",
+      "speaker": "agent",
+      "text": "**(Warmly, a genuine smile in my voice)**\n\n\"Hello again, [Elderly Person's Name]! It's lovely to hear your voice."
+    },
+    {
+      "timestamp": "2026-01-18T15:58:54.278672",
+      "speaker": "user",
+      "text": "How's it going"
+    },
+    {
+      "timestamp": "2026-01-18T15:58:54.688157",
+      "speaker": "user",
+      "text": "I ended the call why is it still going."
+    }
+  ],
+  "started_at": "2026-01-18T15:58:11.633999",
+  "ended_at": "2026-01-18T15:59:15.992580",
+  "duration_seconds": 64.36,
+  "total_messages": 9,
+  "user_messages": 6,
+  "agent_messages": 3
+}

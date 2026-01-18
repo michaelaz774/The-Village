@@ -47,4 +47,7 @@ dependencies = [
 packages = ["."]
 
 [project.scripts]
+app = "uvicorn:main:app"
+
+[project.scripts]
 start = "uvicorn:main:app"
