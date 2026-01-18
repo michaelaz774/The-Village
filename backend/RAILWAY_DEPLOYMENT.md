@@ -20,7 +20,7 @@
 3. **Choose "Deploy from GitHub repo"**
 4. **Connect your GitHub account**
 5. **Select your repository** (`your-username/the-village`)
-6. **Choose the `backend/` directory** (if your repo has frontend too)
+6. **⚠️ CRITICAL:** Click **"Add Root Directory"** and enter `backend/` - this tells Railway to deploy from the backend folder only
 
 ## Step 3: Configure Build Settings
 
@@ -96,15 +96,25 @@ curl https://your-railway-url.up.railway.app/elderly
 
 ## Troubleshooting
 
+### ❌ "No such file or directory: venv/bin/activate" or "uvicorn: command not found"
+- **Problem:** Railway is running the wrong start script
+- **Solution:** Ensure Root Directory is set to `backend/` in Railway settings
+- **Why:** Railway was trying to run the root `start.sh` instead of deploying the backend
+
+### ❌ "python: command not found"
+- **Problem:** Railway can't find Python commands
+- **Solution:** Root Directory must be `backend/` so Railway uses the correct Python environment
+
 ### Build Fails
 - **Check logs** in Railway dashboard
 - **Missing dependencies?** Check `requirements.txt`
 - **Python version?** Railway uses Python 3.12 by default
 
 ### Runtime Errors
-- **Missing env vars?** Check Variables tab
+- **Missing env vars?** Check Variables tab in Railway
 - **Database connection?** Verify Supabase credentials
-- **Model file?** Ensure `best_pd_model.pkl` is accessible
+- **Model file?** Ensure `best_pd_model.pkl` is in `backend/parkinson/` and not ignored by git
+- **Port issues?** Railway provides `$PORT` env var automatically
 
 ### WebSocket Issues
 - **Expected:** Frontend WebSocket connections will fail until you deploy the frontend too

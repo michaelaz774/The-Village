@@ -9,7 +9,7 @@
 ## Railway Setup
 - [ ] Create Railway account at [railway.app](https://railway.app)
 - [ ] Connect GitHub repository
-- [ ] Select `backend/` directory for deployment
+- [ ] **CRITICAL:** Set Root Directory to `backend/` (click "Add Root Directory" in Railway)
 
 ## Environment Variables (Railway Dashboard → Variables)
 - [ ] `SUPABASE_URL` - Your Supabase project URL
