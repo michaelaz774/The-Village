@@ -53,5 +53,5 @@ logs/
 *.mp3
 *.ogg
 
-# ML models (keep in deployment)
-# best_pd_model.pkl - include this in production
+# ML models - include in deployment
+!parkinson/best_pd_model.pkl

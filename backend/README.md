@@ -62,39 +62,27 @@ Run the SQL schema in your Supabase SQL Editor:
 
 Place the trained Parkinson's model file `best_pd_model.pkl` in the `backend/parkinson/` directory.
 
-### Deployment Steps
+### Deployment Steps (Railway UI)
 
-1. **Connect to Railway:**
+1. **Push to GitHub:**
    ```bash
-   # Install Railway CLI
-   curl -fsSL https://railway.app/install.sh | sh
-
-   # Login
-   railway login
+   git add .
+   git commit -m "Railway deployment"
+   git push origin main
    ```
 
-2. **Deploy:**
-   ```bash
-   # Navigate to backend directory
-   cd backend
+2. **Railway Dashboard:**
+   - Go to [railway.app](https://railway.app)
+   - "Start a New Project" → "Deploy from GitHub repo"
+   - Select your repository
+   - **Important:** Set "Root Directory" to `backend/`
 
-   # Initialize Railway project
-   railway init
+3. **Set Environment Variables:**
+   In Railway Variables tab, add all required variables from the list above.
 
-   # Set environment variables
-   railway variables set SUPABASE_URL=your-url
-   railway variables set SUPABASE_ANON_KEY=your-key
-   # ... set all required variables
-
-   # Deploy
-   railway up
-   ```
-
-3. **Alternative - GitHub Integration:**
-   - Push this repo to GitHub
-   - Connect Railway to your GitHub repo
-   - Set environment variables in Railway dashboard
-   - Deploy automatically on push
+4. **Deploy:**
+   - Railway will auto-detect Python and use `railway.toml`
+   - Click "Deploy" and watch the build logs
 
 ### API Endpoints
 
