@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import google.genai as genai
 
-from backend.models import (
+from models import (
     CallSession, TranscriptLine, WellbeingAssessment,
     Concern, ProfileFact, Elder
 )

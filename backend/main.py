@@ -1,14 +1,14 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from backend.database import supabase
-from backend.websocket_manager import ws_manager
-from backend.models import (
+from database import supabase
+from websocket_manager import ws_manager
+from models import (
     Elder, CallSession, CallStatus, TranscriptLine, VillageAction,
     Concern, ProfileFact, VillageMember
 )
-from backend.margaret import margaret_elder
-from backend.ai_analyzer import ai_analyzer
+from margaret import margaret_elder
+from ai_analyzer import ai_analyzer
 import requests
 import os
 import uuid
@@ -712,7 +712,7 @@ async def process_parkinson_background(room_name: str, recording_path: str):
         print(f"✅ [Background] Downloaded {len(audio_content)} bytes")
 
         # Run Parkinson's detection
-        from backend.parkinson.run_model import predict_parkinson
+        from parkinson.run_model import predict_parkinson
         parkinson_result = predict_parkinson(audio_content, recording_path.split("/")[-1])
 
         print(f"✅ [Background] Parkinson's analysis complete: {parkinson_result['disease']}")
@@ -793,7 +793,7 @@ async def get_biomarkers(request: GetBiomarkersRequest):
 async def detect_parkinson(file: UploadFile = File(...)):
     """Detect Parkinson's disease from voice recording"""
     try:
-        from backend.parkinson.run_model import predict_parkinson
+        from parkinson.run_model import predict_parkinson
 
         content = await file.read()
         if len(content) == 0:
@@ -823,7 +823,7 @@ async def detect_parkinson_from_recording(request: GetParkinsonRequest):
         audio_content = audio_response.content
 
         # Run Parkinson's detection
-        from backend.parkinson.run_model import predict_parkinson
+        from parkinson.run_model import predict_parkinson
         parkinson_result = predict_parkinson(audio_content, path.split("/")[-1])
 
         print(f"✅ Parkinson's detection complete: {parkinson_result['disease']}")

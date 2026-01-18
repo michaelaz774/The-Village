@@ -1,6 +1,6 @@
 """Demo data: Margaret Chen profile."""
 from datetime import datetime
-from backend.models import Elder, ProfileFact, VillageMember, MedicalInfo, Medication, WellbeingBaseline
+from models import Elder, ProfileFact, VillageMember, MedicalInfo, Medication, WellbeingBaseline
 
 
 MARGARET = Elder(
